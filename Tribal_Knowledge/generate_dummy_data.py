@@ -2,8 +2,8 @@
 This script will generate dummy data similar to what you might pull from GitHub's REST API for repository languages.
 https://docs.github.com/en/rest/repos/repos?apiVersion=2022-11-28#list-repository-languages
 
-# GitHub CLI api
-# https://cli.github.com/manual/gh_api
+GitHub CLI api
+https://cli.github.com/manual/gh_api
 
 gh api \
   -H "Accept: application/vnd.github+json" \
