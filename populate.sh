@@ -1,10 +1,9 @@
 #!/bin/bash
-
-"""
+'''
 This is a simple script to run just to populate the new metric idea and be consistent with the other in the repo
 its not really designed to do much except create the subfolder using poetry to keep track of dependencies and keep
 things a little more tidy and consistent across metric projects.
-"
+'''
 
 # Define your metrics here
 metrics=("YOUR METRIC IDEA HERE")

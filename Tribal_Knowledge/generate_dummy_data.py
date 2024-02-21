@@ -16,25 +16,27 @@ Example Response:
   "Python": 7769
 }
 
+Inside the `generate_dummy_data` function we use a gamma distribution to select the number of languages per repo
+for ease of parameter adjustment you can visualise what they look like here:
+https://homepage.divms.uiowa.edu/~mbognar/applets/gamma.html
+
 """
 import json
 import numpy as np
 import random
 from typing import Dict, List
+from scipy.stats import gamma
 
 # Set seed for reproducibility
 np.random.seed(42)
 
 # Extended set of languages with top-level prominence (percentage)
 languages_prominence = {
-    'Python': 15, 'JavaScript': 14, 'Java': 13, 'C#': 7, 'PHP': 6,
-    'C++': 6, 'TypeScript': 5, 'Ruby': 4, 'Swift': 3, 'Kotlin': 3,
-    'Go': 3, 'Rust': 2, 'Scala': 2, 'Perl': 1, 'Lua': 1,
-    'Haskell': 1, 'Clojure': 1, 'Elixir': 1, 'Dart': 1, 'Groovy': 1,
-    'Objective-C': 1, 'Bash': 2, 'PowerShell': 1, 'Erlang': 1, 'Julia': 1,
-    'Fortran': 1, 'R': 1, 'MATLAB': 1, 'VBA': 1, 'SQL': 5,
-    'HTML': 2, 'CSS': 2, '.NET': 3, 'Rails': 1, 'Flutter': 1, 'Octave': 1, 'F#': 1
-}
+    'Python': 13.70, 'JavaScript': 12.79, 'Java': 11.87, 'C#': 4.57, 'PHP': 5.48, 'C++': 5.48, 'TypeScript': 4.57,
+    'Ruby': 3.65, 'Swift': 2.74, 'Kotlin': 2.74, 'Go': 2.74, 'Rust': 1.83, 'Scala': 1.83, 'Perl': 0.46, 'Lua': 0.46,
+    'Haskell': 0.46, 'Clojure': 0.46, 'Elixir': 0.46, 'Dart': 0.46, 'Groovy': 0.46, 'Objective-C': 0.46, 'Bash': 4.57,
+    'PowerShell': 0.46, 'Erlang': 0.46, 'Julia': 0.46, 'Fortran': 0.46, 'R': 0.46, 'MATLAB': 0.46, 'VBA': 0.46,
+    'SQL': 6.39, 'HTML': 1.83, 'CSS': 1.83, '.NET': 2.74, 'Rails': 0.46, 'Flutter': 0.46, 'Octave': 0.46, 'F#': 0.46}
 
 """
 Positive Affinities: Represent languages that commonly co-occur within the same projects or repositories, often due to 
@@ -47,7 +49,7 @@ Negative Affinities: Indicate languages less likely to be found together within 
 """
 
 language_affinities = {
-    'Python': {'Bash': 0.3, 'R': 0.2, 'JavaScript': -0.2, 'Java': -0.5},
+    'Python': {'Bash': 0.4, 'R': 0.2, 'JavaScript': -0.2, 'Java': -0.5, 'Lua': -0.6, 'Objective-C': -0.5},
     'JavaScript': {'TypeScript': 0.5, 'HTML': 0.4, 'CSS': 0.4, 'Python': -0.2, 'Java': -0.4},
     'Java': {'Kotlin': 0.4, 'Scala': 0.3, 'Groovy': 0.3, 'Python': -0.5, 'JavaScript': -0.4},
     'C#': {'.NET': 0.5, 'F#': 0.3, 'PowerShell': 0.2, 'Java': -0.4},
@@ -67,18 +69,18 @@ language_affinities = {
     'Elixir': {'Erlang': 0.4, 'Ruby': 0.2, 'Python': -0.1},
     'Dart': {'Flutter': 0.5, 'JavaScript': 0.1, 'Java': -0.2},
     'Groovy': {'Java': 0.3, 'Scala': 0.2, 'Kotlin': 0.2},
-    'Objective-C': {'Swift': 0.3, 'C++': -0.2, 'Python': -0.2},
-    'Bash': {'Python': 0.3, 'Perl': 0.3, 'PowerShell': -0.3},
+    'Objective-C': {'Swift': 0.3, 'C++': -0.2, 'Python': -0.5},
+    'Bash': {'Python': 0.4, 'Perl': 0.3, 'PowerShell': -0.3},
     'PowerShell': {'C#': 0.3, 'Bash': -0.3, '.NET': 0.4},
     'Erlang': {'Elixir': 0.4, 'Scala': 0.1, 'Java': -0.2},
     'Julia': {'Python': 0.3, 'R': 0.4, 'Matlab': 0.3},
-    'Fortran': {'C': 0.2, 'Matlab': 0.3, 'Python': -0.1},
+    'Fortran': {'C': 0.2, 'Matlab': 0.3, 'Python': -0.4, 'Java': -0.4},
     'R': {'Python': 0.3, 'Julia': 0.4, 'Matlab': 0.3},
     'MATLAB': {'Octave': 0.4, 'Python': 0.2, 'R': 0.3},
     'VBA': {'SQL': 0.3, 'Python': -0.2, 'Java': -0.3},
     'SQL': {'Python': 0.2, 'Java': 0.1, 'PHP': 0.3},
-    'HTML': {'CSS': 0.5, 'JavaScript': 0.4},
-    'CSS': {'HTML': 0.5, 'JavaScript': 0.4},
+    'HTML': {'CSS': 0.8, 'JavaScript': 0.8},
+    'CSS': {'HTML': 0.8, 'JavaScript': 0.8},
     '.NET': {'C#': 0.5, 'F#': 0.3, 'PowerShell': 0.4},
     'Rails': {'Ruby': 0.4},
     'Flutter': {'Dart': 0.5},
@@ -180,7 +182,8 @@ def select_languages(languages: List[str], base_probs: Dict[str, float], num_lan
     return selected_languages
 
 
-def generate_dummy_data(num_projects: int = 5, min_repos: int = 3, max_repos: int = 10) -> Dict[
+def generate_dummy_data(num_projects: int = 5, min_repos: int = 3, max_repos: int = 10,
+                        languages_prominence: Dict[str, int] = None) -> Dict[
     str, Dict[str, Dict[str, int]]]:
     """
     Generates dummy data that simulates the structure and language distribution of repositories within projects,
@@ -188,8 +191,10 @@ def generate_dummy_data(num_projects: int = 5, min_repos: int = 3, max_repos: in
 
     Parameters:
     - num_projects (int): The number of projects to generate. Default is 5.
-    - min_repos (int): The minimum number of repositories per project. Default is 2.
+    - min_repos (int): The minimum number of repositories per project. Default is 3.
     - max_repos (int): The maximum number of repositories per project. Default is 10.
+    - languages_prominence (Dict[str, int]): A dictionary with languages as keys and their prominence values as integers.
+
 
     Returns:
     - projects (Dict[str, Dict[str, Dict[str, int]]]): A nested dictionary where the top-level keys are project names,
@@ -198,9 +203,14 @@ def generate_dummy_data(num_projects: int = 5, min_repos: int = 3, max_repos: in
     """
     projects = {}
 
-    # Define base_probs based on languages_prominence
-    total_prominence = sum(languages_prominence.values())
-    base_probs = {lang: prominence / total_prominence for lang, prominence in languages_prominence.items()}
+    # Define base_probs based on languages_prominence, adjusted for more realistic proportions
+    base_probs = {lang: prominence ** 0.5 for lang, prominence in languages_prominence.items()}
+
+    # Parameters for the skewed distribution of num_languages
+    # Easy to visualise the shape of the distribution-  https://homepage.divms.uiowa.edu/~mbognar/applets/gamma.html
+    a = 1.2  # Shape parameter for the gamma distribution
+    mean_languages = 4  # Desired mean
+    scale = mean_languages / a  # Scale parameter
 
     for p in range(1, num_projects + 1):
         project_name = f"Project_{p}"
@@ -210,21 +220,27 @@ def generate_dummy_data(num_projects: int = 5, min_repos: int = 3, max_repos: in
             repo_name = f"Repo_{r}"
             projects[project_name][repo_name] = {}
 
-            # Skewed distribution for the number of languages per repository
+            # Generate probabilities using the gamma PDF for num_languages
             total_languages = len(languages_prominence)
-            probabilities = np.array([0.2 if i < 5 else 0.8 / (total_languages - 5) for i in range(total_languages)])
-            probabilities /= probabilities.sum()  # Normalize probabilities
+            x = np.arange(1, total_languages + 1)
+            probabilities = gamma.pdf(x, a=a, scale=scale)
+            probabilities /= probabilities.sum()  # Normalize
 
-            num_languages = np.random.choice(range(1, total_languages + 1), p=probabilities)
+            # Select num_languages based on the skewed distribution
+            num_languages = np.random.choice(x, p=probabilities)
 
-            # Use base_probs for language selection
+            # Use base_probs for language selection - its unlikely to have a very high number of diverse languages
             selected_languages = select_languages(list(languages_prominence.keys()), base_probs, num_languages,
                                                   language_affinities)
 
-            total_repo_bytes = random.randint(50000, 5000000)
-            lang_bytes = np.random.dirichlet(
-                alpha=[languages_prominence[lang] for lang in selected_languages]) * total_repo_bytes
+            total_repo_bytes = random.randint(500_000, 10_000_000)
+            # Use the Dirichlet distribution to allocate initial bytes among selected languages
+            alpha = [base_probs[lang] for lang in selected_languages]
+            lang_proportions = np.random.dirichlet(alpha)
+            # Allocate total bytes based on Dirichlet-generated proportions
+            lang_bytes = lang_proportions * total_repo_bytes
 
+            # Assign bytes to languages, ensuring integer values
             for idx, lang in enumerate(selected_languages):
                 projects[project_name][repo_name][lang] = int(lang_bytes[idx])
 
@@ -237,5 +253,6 @@ def save_data(data, filename='data/dummy_language_data.json'):
 
 
 if __name__ == "__main__":
-    dummy_data = generate_dummy_data(num_projects=5, min_repos=3, max_repos=15)
+    dummy_data = generate_dummy_data(num_projects=10, min_repos=5, max_repos=15,
+                                     languages_prominence=languages_prominence)
     save_data(dummy_data)
