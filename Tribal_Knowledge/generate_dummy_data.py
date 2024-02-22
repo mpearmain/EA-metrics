@@ -182,7 +182,7 @@ def select_languages(languages: List[str], base_probs: Dict[str, float], num_lan
     return selected_languages
 
 
-def generate_dummy_data(num_projects: int = 5, min_repos: int = 3, max_repos: int = 10,
+def generate_dummy_data(num_projects: int = 5, min_repos: int = 3, max_repos: int = 10, mean_languages: int = 4,
                         languages_prominence: Dict[str, int] = None) -> Dict[
     str, Dict[str, Dict[str, int]]]:
     """
@@ -193,6 +193,7 @@ def generate_dummy_data(num_projects: int = 5, min_repos: int = 3, max_repos: in
     - num_projects (int): The number of projects to generate. Default is 5.
     - min_repos (int): The minimum number of repositories per project. Default is 3.
     - max_repos (int): The maximum number of repositories per project. Default is 10.
+    - mean_languages (int): The mean number of languages per repo. Default is 4.
     - languages_prominence (Dict[str, int]): A dictionary with languages as keys and their prominence values as integers.
 
 
@@ -209,7 +210,6 @@ def generate_dummy_data(num_projects: int = 5, min_repos: int = 3, max_repos: in
     # Parameters for the skewed distribution of num_languages
     # Easy to visualise the shape of the distribution-  https://homepage.divms.uiowa.edu/~mbognar/applets/gamma.html
     a = 1.2  # Shape parameter for the gamma distribution
-    mean_languages = 4  # Desired mean
     scale = mean_languages / a  # Scale parameter
 
     for p in range(1, num_projects + 1):
@@ -253,6 +253,8 @@ def save_data(data, filename='data/dummy_language_data.json'):
 
 
 if __name__ == "__main__":
-    dummy_data = generate_dummy_data(num_projects=10, min_repos=5, max_repos=15,
+    # mean number of language per repo= 4
+
+    dummy_data = generate_dummy_data(num_projects=40, min_repos=5, max_repos=15, mean_languages=4,  # Desired mean
                                      languages_prominence=languages_prominence)
     save_data(dummy_data)
