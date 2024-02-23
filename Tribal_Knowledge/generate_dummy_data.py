@@ -214,7 +214,7 @@ def generate_dummy_data(num_projects: int = 5, min_repos: int = 3, max_repos: in
     scale = mean_languages / a  # Scale parameter
 
     # Hard-code Project_0, Repo_1 to be in Lua with 10,000,000 bytes to force an odd language
-    projects['Project_0'] = {'Repo_1': {"Lua": 10_000_000}}
+    projects['Project_0'] = {'Repo_1': {"Lua": 30_000_000}}
 
     for p in range(1, num_projects + 1):
         project_name = f"Project_{p}"
