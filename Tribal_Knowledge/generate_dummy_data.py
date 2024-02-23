@@ -24,8 +24,9 @@ https://homepage.divms.uiowa.edu/~mbognar/applets/gamma.html
 import json
 import numpy as np
 import random
-from typing import Dict, List
+from typing import Dict, List, Any
 from scipy.stats import gamma
+import os
 
 # Set seed for reproducibility
 np.random.seed(42)
@@ -247,9 +248,31 @@ def generate_dummy_data(num_projects: int = 5, min_repos: int = 3, max_repos: in
     return projects
 
 
-def save_data(data, filename='data/dummy_language_data.json'):
-    with open(filename, 'w') as f:
-        json.dump(data, f, indent=4)
+def save_data(data: Dict[Any, Any], directory: str = 'data', filename: str = 'dummy_language_data.json') -> None:
+    """
+    Saves the given data to a JSON file, creating the directory if it does not exist.
+
+    Parameters:
+    - data (Dict[Any, Any]): The data to be saved. It should be a dictionary that can be serialized into JSON.
+    - directory (str, optional): The directory where the file will be saved. Defaults to 'data'.
+    - filename (str, optional): The name of the file to save the data in. Defaults to 'dummy_language_data.json'.
+
+    Returns:
+    - None
+    """
+
+    # Construct the full file path
+    filepath = os.path.join(directory, filename)
+
+    # Check if the directory exists
+    if not os.path.exists(directory):
+        # Create the directory if it does not exist
+        os.makedirs(directory)
+
+    # Save the data to the specified file
+    with open(filepath, 'w') as f:
+        json.dump(data, f, indent=2)
+    print(f"dummy data generated: saved to {filepath}")
 
 
 if __name__ == "__main__":
@@ -257,4 +280,4 @@ if __name__ == "__main__":
 
     dummy_data = generate_dummy_data(num_projects=40, min_repos=5, max_repos=15, mean_languages=4,  # Desired mean
                                      languages_prominence=languages_prominence)
-    save_data(dummy_data)
+    save_data(data=dummy_data, directory='data', filename='dummy_language_data.json')
