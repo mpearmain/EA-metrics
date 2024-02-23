@@ -213,10 +213,12 @@ def generate_dummy_data(num_projects: int = 5, min_repos: int = 3, max_repos: in
     a = 1.2  # Shape parameter for the gamma distribution
     scale = mean_languages / a  # Scale parameter
 
+    # Hard-code Project_0, Repo_1 to be in Lua with 10,000,000 bytes to force an odd language
+    projects['Project_0'] = {'Repo_1': {"Lua": 10_000_000}}
+
     for p in range(1, num_projects + 1):
         project_name = f"Project_{p}"
         projects[project_name] = {}
-
         for r in range(1, np.random.randint(min_repos, max_repos + 1) + 1):  # Adjusted to include max_repos
             repo_name = f"Repo_{r}"
             projects[project_name][repo_name] = {}
