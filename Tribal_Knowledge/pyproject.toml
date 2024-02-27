@@ -16,7 +16,7 @@ arviz = "^0.17.0"
 jupyterlab = "^4.1.2"
 jupyter = "^1.0.0"
 pymc = "^5.10.4"
-polars = "^0.20.10"
+graphviz = "^0.20.1"
 
 
 [build-system]

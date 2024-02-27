@@ -1,5 +1,5 @@
 import json
-import polars as pl
+import pandas as pd
 
 def load_data(filepath):
     """Load and parse JSON data from a given filepath.
@@ -14,14 +14,22 @@ def load_data(filepath):
         data = json.load(file)
     return data
 
-def json2polars(json_data):
-    # Lists to hold data
+def json2pandas(json_data):
+    """Convert JSON data to a pandas DataFrame.
+
+    Args:
+        json_data (dict): The JSON data to convert.
+
+    Returns:
+        pandas.DataFrame: The converted data as a pandas DataFrame.
+    """
+    # Initialize lists to hold data
     project_names = []
     repo_names = []
     languages = []
     byte_counts = []
 
-    # Iterate over projects and repositories
+    # Iterate over projects and repositories in the JSON data
     for project_name, repos in json_data.items():
         for repo_name, languages_data in repos.items():
             for language, byte_count in languages_data.items():
@@ -31,8 +39,8 @@ def json2polars(json_data):
                 languages.append(language)
                 byte_counts.append(byte_count)
 
-    # Create a Polars DataFrame from the lists
-    df = pl.DataFrame({
+    # Create a pandas DataFrame from the lists
+    df = pd.DataFrame({
         'Project': project_names,
         'Repository': repo_names,
         'Language': languages,
