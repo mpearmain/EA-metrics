@@ -1,5 +1,7 @@
 import json
 import pandas as pd
+import matplotlib.cm as cm  # Updated import for accessing colormaps
+import numpy as np
 
 def load_data(filepath):
     """Load and parse JSON data from a given filepath.
@@ -13,6 +15,7 @@ def load_data(filepath):
     with open(filepath, 'r') as file:
         data = json.load(file)
     return data
+
 
 def json2pandas(json_data):
     """Convert JSON data to a pandas DataFrame.

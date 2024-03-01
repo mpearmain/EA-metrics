@@ -214,7 +214,7 @@ def generate_dummy_data(num_projects: int = 5, min_repos: int = 3, max_repos: in
     scale = mean_languages / a  # Scale parameter
 
     # Hard-code Project_0, Repo_1 to be in Lua with 10,000,000 bytes to force an odd language
-    projects['Project_0'] = {'Repo_1': {"Lua": 50_000_000}}
+    # projects['Project_0'] = {'Repo_1': {"Lua": 500_000_000}}
 
     for p in range(1, num_projects + 1):
         project_name = f"Project_{p}"
@@ -280,6 +280,6 @@ def save_data(data: Dict[Any, Any], directory: str = 'data', filename: str = 'du
 if __name__ == "__main__":
     # mean number of language per repo= 4
 
-    dummy_data = generate_dummy_data(num_projects=20, min_repos=2, max_repos=25, mean_languages=4,  # Desired mean
+    dummy_data = generate_dummy_data(num_projects=50, min_repos=2, max_repos=25, mean_languages=4,  # Desired mean
                                      languages_prominence=languages_prominence)
     save_data(data=dummy_data, directory='data', filename='dummy_language_data.json')
