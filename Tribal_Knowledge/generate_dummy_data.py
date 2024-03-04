@@ -184,66 +184,44 @@ def select_languages(languages: List[str], base_probs: Dict[str, float], num_lan
 
 
 def generate_dummy_data(num_projects: int = 5, min_repos: int = 3, max_repos: int = 10, mean_languages: int = 4,
-                        languages_prominence: Dict[str, int] = None) -> Dict[
+                        languages_prominence: Dict[str, int] = None, min_bytes_per_language: int = 10000) -> Dict[
     str, Dict[str, Dict[str, int]]]:
     """
-    Generates dummy data that simulates the structure and language distribution of repositories within projects,
-    akin to what might be retrieved from GitHub's REST API.
+    Generates dummy data simulating the structure and language distribution of repositories within projects,
+    akin to data retrieved from a platform like GitHub.
 
     Parameters:
-    - num_projects (int): The number of projects to generate. Default is 5.
-    - min_repos (int): The minimum number of repositories per project. Default is 3.
-    - max_repos (int): The maximum number of repositories per project. Default is 10.
-    - mean_languages (int): The mean number of languages per repo. Default is 4.
-    - languages_prominence (Dict[str, int]): A dictionary with languages as keys and their prominence values as integers.
-
+    - num_projects (int): Number of projects to generate.
+    - min_repos (int): Minimum number of repositories per project.
+    - max_repos (int): Maximum number of repositories per project.
+    - mean_languages (int): Mean number of languages per repository.
+    - languages_prominence (Dict[str, int]): Languages and their prominence values.
+    - min_bytes_per_language (int): Minimum byte size for any language in a repository.
 
     Returns:
-    - projects (Dict[str, Dict[str, Dict[str, int]]]): A nested dictionary where the top-level keys are project names,
-      second-level keys are repository names, and third-level keys are programming languages with their corresponding
-      byte sizes as values.
+    - Dict[str, Dict[str, Dict[str, int]]]: Nested dictionary with project names, repository names,
+      and programming languages with their corresponding byte sizes.
     """
     projects = {}
-
-    # Define base_probs based on languages_prominence, adjusted for more realistic proportions
     base_probs = {lang: prominence ** 0.5 for lang, prominence in languages_prominence.items()}
-
-    # Parameters for the skewed distribution of num_languages
-    # Easy to visualise the shape of the distribution-  https://homepage.divms.uiowa.edu/~mbognar/applets/gamma.html
-    a = 1.2  # Shape parameter for the gamma distribution
-    scale = mean_languages / a  # Scale parameter
-
-    # Hard-code Project_0, Repo_1 to be in Lua with 10,000,000 bytes to force an odd language
-    # projects['Project_0'] = {'Repo_1': {"Lua": 500_000_000}}
+    a, scale = 1.2, mean_languages / 1.2  # Parameters for the gamma distribution
 
     for p in range(1, num_projects + 1):
         project_name = f"Project_{p}"
         projects[project_name] = {}
-        for r in range(1, np.random.randint(min_repos, max_repos + 1) + 1):  # Adjusted to include max_repos
+        for r in range(1, np.random.randint(min_repos, max_repos + 1) + 1):
             repo_name = f"Repo_{r}"
             projects[project_name][repo_name] = {}
-
-            # Generate probabilities using the gamma PDF for num_languages
             total_languages = len(languages_prominence)
-            x = np.arange(1, total_languages + 1)
-            probabilities = gamma.pdf(x, a=a, scale=scale)
-            probabilities /= probabilities.sum()  # Normalize
-
-            # Select num_languages based on the skewed distribution
-            num_languages = np.random.choice(x, p=probabilities)
-
-            # Use base_probs for language selection - its unlikely to have a very high number of diverse languages
+            probabilities = gamma.pdf(np.arange(1, total_languages + 1), a, scale=scale)
+            num_languages = np.random.choice(np.arange(1, total_languages + 1), p=probabilities / probabilities.sum())
             selected_languages = select_languages(list(languages_prominence.keys()), base_probs, num_languages,
-                                                  language_affinities)
+                                                  {})  # Placeholder for language affinities
+            total_repo_bytes = random.randint(500_000, 500_000_000 - min_bytes_per_language * num_languages)
+            lang_proportions = np.random.dirichlet([base_probs[lang] for lang in selected_languages]) * (
+                        total_repo_bytes - min_bytes_per_language * num_languages)
+            lang_bytes = lang_proportions + min_bytes_per_language
 
-            total_repo_bytes = random.randint(500_000, 10_000_000)
-            # Use the Dirichlet distribution to allocate initial bytes among selected languages
-            alpha = [base_probs[lang] for lang in selected_languages]
-            lang_proportions = np.random.dirichlet(alpha)
-            # Allocate total bytes based on Dirichlet-generated proportions
-            lang_bytes = lang_proportions * total_repo_bytes
-
-            # Assign bytes to languages, ensuring integer values
             for idx, lang in enumerate(selected_languages):
                 projects[project_name][repo_name][lang] = int(lang_bytes[idx])
 
@@ -280,6 +258,7 @@ def save_data(data: Dict[Any, Any], directory: str = 'data', filename: str = 'du
 if __name__ == "__main__":
     # mean number of language per repo= 4
 
-    dummy_data = generate_dummy_data(num_projects=50, min_repos=2, max_repos=25, mean_languages=4,  # Desired mean
+    dummy_data = generate_dummy_data(num_projects=50, min_repos=3, max_repos=15, mean_languages=4,
+                                     min_bytes_per_language=5_000,  # Desired mean
                                      languages_prominence=languages_prominence)
     save_data(data=dummy_data, directory='data', filename='dummy_language_data.json')
