@@ -258,7 +258,7 @@ def save_data(data: Dict[Any, Any], directory: str = 'data', filename: str = 'du
 if __name__ == "__main__":
     # mean number of language per repo= 4
 
-    dummy_data = generate_dummy_data(num_projects=50, min_repos=3, max_repos=15, mean_languages=4,
+    dummy_data = generate_dummy_data(num_projects=150, min_repos=3, max_repos=15, mean_languages=4,
                                      min_bytes_per_language=5_000,  # Desired mean
                                      languages_prominence=languages_prominence)
     save_data(data=dummy_data, directory='data', filename='dummy_language_data.json')
