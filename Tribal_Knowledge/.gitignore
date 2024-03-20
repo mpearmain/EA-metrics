@@ -1,0 +1,4 @@
+# created by virtualenv automatically
+*
+# dont keep env related files
+.env
