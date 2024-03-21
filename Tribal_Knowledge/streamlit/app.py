@@ -36,7 +36,7 @@ if st.session_state['repositories']:
     repos = st.session_state['repositories']
     # Choose selection widget based on the number of repositories
     if len(repos) >= 10:
-        if st.checkbox('Select All'):
+        if st.checkbox('Pick all repos'):
             default_selection = repos
         else:
             default_selection = []
@@ -46,7 +46,7 @@ if st.session_state['repositories']:
         st.session_state['selected_repos'] = st.selectbox('Select a repository:', [''] + repos)
 
 # Button to analyze selected repositories
-if st.button('Select', key='select_repos_button'):
+if st.button('Confirm selection', key='select_repos_button'):
     if st.session_state['selected_repos']:
         st.write(f"Selected repositories for analysis: {st.session_state['selected_repos']}")
         # Perform analysis using the selected repositories
