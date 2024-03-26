@@ -3,6 +3,7 @@ import requests
 from typing import List, Dict, Any
 import json
 from abc import ABC, abstractmethod
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import pandas as pd
 from github import Github
@@ -201,162 +202,119 @@ class AzureDevOpsRepositoryInfoExtractor(RepositoryInfoExtractor):
         output_format.transform(results)
 
 
-class GitHubRepositoryInfoExtractor(RepositoryInfoExtractor):
+class GitHubRepositoryInfoExtractor:
     """
-    Extracts repository information from GitHub based on specified identifiers
-    and details specifications. Allows for fetching repository names, detailed
-    information about each repository, and outputting these details using a specified
-    output format.
+    Extracts repository information from GitHub using specified identifiers and detail specifications. It leverages
+    multithreading to improve the performance of fetching data from multiple repositories simultaneously.
+
+    This class uses the PyGithub library, maintaining its convenience and functionality while enhancing performance
+    through parallel processing. It is designed to fetch repository names, detailed information about each repository,
+    and output these details in a specified format.
 
     Attributes:
         access_token (str): Personal access token for GitHub to authenticate and access data.
-        github (Gitub): Instance of the Github class from PyGithub for API interactions.
-
-    Methods:
-        fetch_repositories: Fetches repository names based on specified owner identifiers.
-        fetch_repository_details: Fetches detailed information for a list of repositories.
-        _fetch_properties: Helper method to extract specified properties from a repository.
-        _fetch_methods: Helper method to invoke specified methods on a repository.
-        output_results: Outputs the fetched repository attributes using the specified output format.
+        github (Github): Instance of the Github class from PyGithub for API interactions.
+        executor (ThreadPoolExecutor): ThreadPoolExecutor instance for managing a pool of threads.
 
     Example usage:
-    from github_repository_info_extractor import GitHubRepositoryInfoExtractor
+        extractor = GitHubRepositoryInfoExtractor(access_token="your_github_access_token")
+        owners = ['apache']
+        repos = extractor.fetch_repositories(identifiers=owners)
+        details_spec = {
+            "properties": ["stargazers_count"],
+            "methods": {"get_languages": None}
+        }
+        repo_attributes = extractor.fetch_repository_details(repos=repos[:10], details_spec=details_spec)
+        extractor.close()
 
-    # Initialize the extractor with your GitHub access token
-    access_token = "your_github_access_token"
-    extractor = GitHubRepositoryInfoExtractor(access_token=access_token)
-
-    owners = ['apache']
-    repos = extractor.fetch_repositories(identifiers=owners)
-
-    # Details specification for fetching properties and invoking methods
-    details_spec = {
-        "properties": ["stargazers_count"],  # Direct attributes with no arguments
-        "methods": {"get_languages": None}   # Methods, potentially with arguments
-    }
-
-    # Fetch repository details for the first 10 repositories
-    repo_attributes = extractor.fetch_repository_details(repos=repos[:10], details_spec=details_spec)
+    Note: This implementation focuses on using multithreading (not asyncio) for parallel calls to GitHub's API,
+    which does not involve async calls or awaiting futures but still significantly improves performance for
+    large-scale data fetching tasks.
     """
 
-    def __init__(self, access_token: str) -> None:
+    def __init__(self, access_token: str, max_workers: int = 10) -> None:
         """
-        Initializes the GitHubRepositoryInfoExtractor with a GitHub access token.
+        Initializes the GitHubRepositoryInfoExtractor with a GitHub access token and ThreadPoolExecutor for multithreading.
 
         Args:
             access_token (str): Personal access token for GitHub.
+            max_workers (int): Maximum number of threads to use for ThreadPoolExecutor.
         """
         self.access_token = access_token
-        self.github = Github(self.access_token)
+        self.github = Github(access_token)
+        self.executor = ThreadPoolExecutor(max_workers=max_workers)
 
     def fetch_repositories(self, identifiers: List[str]) -> List[str]:
         """
-        Fetches repository names for the given GitHub user or organization identifiers.
+        Fetches repository names for given GitHub user or organization identifiers.
 
         Args:
             identifiers (List[str]): GitHub usernames or organization names.
 
         Returns:
-            List[str]: A list of repository names in the format "owner/repo_name".
+            List[str]: A list of repository names in the "owner/repo_name" format.
         """
         all_repos = []
         for owner in identifiers:
             user = self.github.get_user(owner)
-            for repo in user.get_repos():
-                all_repos.append(f"{owner}/{repo.name}")
+            all_repos.extend(f"{owner}/{repo.name}" for repo in user.get_repos())
         return all_repos
 
-    def fetch_repository_details(self, repos: List[str], details_spec: Dict[str, Any] = None) -> Dict[str, Any]:
+    def _fetch_details(self, repo_full_name: str, details_spec: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Fetches detailed information for a list of repositories based on the details specification.
+        Fetches detailed information for a single repository based on the details specification.
+
+        Args:
+            repo_full_name (str): The full name of the repository in the "owner/repo_name" format.
+            details_spec (Dict[str, Any]): Specifications for which properties and methods to fetch.
+
+        Returns:
+            Dict[str, Any]: A dictionary containing the fetched data.
+        """
+        repo = self.github.get_repo(repo_full_name)
+        repo_data = {}
+        # Handle properties
+        for prop in details_spec.get("properties", []):
+            if hasattr(repo, prop):
+                repo_data[prop] = getattr(repo, prop)
+        # Handle methods
+        for method, args in details_spec.get("methods", {}).items():
+            if hasattr(repo, method) and callable(getattr(repo, method)):
+                repo_data[method] = getattr(repo, method)(**args) if args else getattr(repo, method)()
+        return repo_full_name, repo_data
+
+    def fetch_repository_details(self, repos: List[str], details_spec: Dict[str, Any] = None) -> Dict[
+        str, Dict[str, Any]]:
+        """
+        Fetches detailed information for a list of repositories in parallel using multithreading.
 
         Args:
             repos (List[str]): A list of repository full names (owner/repo_name).
-            details_spec (Dict[str, Any], optional): A dictionary specifying which properties
-                                                     and methods to fetch for each repository.
+            details_spec (Dict[str, Any], optional): Specification for which properties and methods to fetch.
 
         Returns:
-            Dict[str, Any]: A dictionary with repository full names as keys and their detailed
-                            information as values.
+            Dict[str, Dict[str, Any]]: A dictionary with repository full names as keys and their detailed information as values.
         """
         if details_spec is None:
             details_spec = {"properties": [], "methods": {}}
+        future_to_repo = {self.executor.submit(self._fetch_details, repo, details_spec): repo for repo in repos}
         results = {}
-        for repo_str in repos:
-            repo = self.github.get_repo(repo_str)
-            repo_data = {}
-            if "properties" in details_spec:
-                for prop in details_spec["properties"]:
-                    if hasattr(repo, prop):
-                        repo_data[prop] = getattr(repo, prop)
-            if "methods" in details_spec:
-                for method, args in details_spec["methods"].items():
-                    if hasattr(repo, method) and callable(getattr(repo, method)):
-                        try:
-                            repo_data[method] = getattr(repo, method)() if args is None else getattr(repo, method)(
-                                *args)
-                        except TypeError as e:
-                            print(f"Error calling {method} with args {args}: {e}")
-            # Add the collected repo_data to the results dictionary under the repository's full name
-            results[repo_str] = repo_data
+        for future in as_completed(future_to_repo):
+            repo, repo_data = future.result()
+            results[repo] = repo_data
         return results
 
-    @staticmethod
-    def _fetch_properties(repo, details_spec: Dict[str, Any]) -> Dict[str, Any]:
+    def close(self) -> None:
         """
-        Internal method to extract specified properties from a GitHub repository object.
-
-        Args:
-            repo: The repository object from which to fetch properties.
-            details_spec (Dict[str, Any]): Specifications of properties to fetch. Keys are
-                                           property names, and values are ignored (should be None).
-
-        Returns:
-            Dict[str, Any]: A dictionary containing the requested properties and their values.
+        Shuts down the ThreadPoolExecutor, ensuring all resources are freed properly.
         """
-        properties_data = {}
-        for attribute in details_spec.keys():
-            if details_spec[attribute] is None and hasattr(repo, attribute):
-                properties_data[attribute] = getattr(repo, attribute)
-        return properties_data
+        self.executor.shutdown(wait=True)
 
-    @staticmethod
-    def _fetch_methods(repo, details_spec: Dict[str, Any]) -> Dict[str, Any]:
+    def __enter__(self) -> "GitHubRepositoryInfoExtractor":
         """
-        Extracts and invokes specified methods from a GitHub repository object based on the detail specification.
+        Enables the class to be used as a context manager.
 
-        This static method iterates over the details specification dictionary, where each key represents
-        an attribute (method) name to be invoked on the repository object. The values are the arguments
-        to be passed to those methods. This method handles both no-argument method calls and methods
-        that require arguments, distinguishing them based on the presence of arguments specified in
-        the details_spec dictionary.
-
-        Args:
-            repo: The repository object from which methods are to be invoked.
-            details_spec (Dict[str, Any]): A dictionary specifying which methods to invoke on the repository object.
-                                            Keys are method names, and values are the arguments for those methods.
-                                            A None value or an empty list/tuple indicates no arguments, while other
-                                            values are treated as arguments to be passed to the method.
-
-        Returns:
-            Dict[str, Any]: A dictionary containing the results of the invoked methods, with method names as keys
-                            and the method invocation results as values.
-
-        Raises:
-            TypeError: If an error occurs during method invocation, such as passing incorrect arguments,
-                       a TypeError is caught and a message is printed, but the error does not propagate.
-        """
-        methods_data = {}
-        for attribute, args in details_spec.items():
-            if hasattr(repo, attribute):
-                attr = getattr(repo, attribute)
-                if callable(attr):
-                    try:
-                        # If args is None or an empty collection, call without arguments; otherwise, pass args.
-                        methods_data[attribute] = attr() if args in (None, [], ()) else attr(*args)
-                    except TypeError as e:
-                        print(f"Error calling {attribute} with args {args}: {e}")
-        return methods_data
+        Returns
 
     def output_results(self, results: Dict[str, Any], output_format: 'OutputFormat') -> None:
         """
