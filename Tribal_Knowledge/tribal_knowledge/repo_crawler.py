@@ -22,7 +22,7 @@ class JsonOutputFormat(OutputFormat):
         return json.dumps(results, indent=2)
 
 
-class PandasOutputStrategy(OutputFormat):
+class PandasOutputFormat(OutputFormat):
     """Outputs data as a pandas DataFrame, dynamically handling attributes."""
 
     def transform(self, results: Dict[str, Any]) -> pd.DataFrame:
