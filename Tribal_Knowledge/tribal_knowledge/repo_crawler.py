@@ -1,12 +1,13 @@
 import base64
-import requests
-from typing import List, Dict, Any
 import json
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import List, Dict, Any, Tuple
 
 import pandas as pd
+import requests
 from github import Github
+from tqdm import tqdm
 
 
 class OutputFormat(ABC):
@@ -204,35 +205,41 @@ class AzureDevOpsRepositoryInfoExtractor(RepositoryInfoExtractor):
 
 class GitHubRepositoryInfoExtractor:
     """
-    Extracts repository information from GitHub using specified identifiers and detail specifications. It leverages
-    multithreading to improve the performance of fetching data from multiple repositories simultaneously.
+    This class extracts repository information from GitHub, leveraging the PyGithub library for API interactions
+    and multithreading to enhance performance by fetching data from multiple repositories in parallel.
 
-    This class uses the PyGithub library, maintaining its convenience and functionality while enhancing performance
-    through parallel processing. It is designed to fetch repository names, detailed information about each repository,
-    and output these details in a specified format.
+    It's designed to query GitHub for a list of repositories based on user or organization identifiers, fetch
+    detailed information for each repository, and optionally output these details in a specified format. The
+    use of a ThreadPoolExecutor for multithreading enables this class to significantly improve performance
+    for fetching large amounts of data without blocking the main execution thread.
 
     Attributes:
-        access_token (str): Personal access token for GitHub to authenticate and access data.
-        github (Github): Instance of the Github class from PyGithub for API interactions.
-        executor (ThreadPoolExecutor): ThreadPoolExecutor instance for managing a pool of threads.
+        access_token (str): A personal access token for GitHub used to authenticate and access the GitHub API.
+        github (Github): An instance of the Github class from PyGithub, configured with the provided access token.
+        executor (ThreadPoolExecutor): A ThreadPoolExecutor instance for managing a pool of threads to execute
+                                       API requests concurrently.
+        repository_details (Dict[str, Dict[str, Any]]): A dictionary to store detailed information for each
+                                                        fetched repository, with repository full names as keys.
 
-    Example usage:
-        extractor = GitHubRepositoryInfoExtractor(access_token="your_github_access_token")
-        owners = ['apache']
-        repos = extractor.fetch_repositories(identifiers=owners)
-        details_spec = {
-            "properties": ["stargazers_count"],
-            "methods": {"get_languages": None}
-        }
-        repo_attributes = extractor.fetch_repository_details(repos=repos[:10], details_spec=details_spec)
-        extractor.close()
+    Example Usage:
+        with GitHubRepositoryInfoExtractor(access_token="your_github_access_token") as extractor:
+            owners = ['apache']
+            repos = extractor.fetch_repositories(identifiers=owners)
+            details_spec = {
+                "properties": ["stargazers_count"],
+                "methods": {"get_languages": None}
+            }
+            repo_attributes = extractor.fetch_repository_details(repos=repos[:10], details_spec=details_spec)
 
-    Note: This implementation focuses on using multithreading (not asyncio) for parallel calls to GitHub's API,
-    which does not involve async calls or awaiting futures but still significantly improves performance for
-    large-scale data fetching tasks.
+            # Optionally, output the fetched data using a custom format
+            extractor.output_results(repo_attributes, SomeOutputFormat())
+
+    The class supports being used as a context manager to ensure proper resource management, particularly
+    the graceful shutdown of the ThreadPoolExecutor upon completion. This usage pattern encourages best
+    practices in resource management and error handling.
     """
 
-    def __init__(self, access_token: str, max_workers: int = 10) -> None:
+    def __init__(self, access_token: str, max_workers: int = 8) -> None:
         """
         Initializes the GitHubRepositoryInfoExtractor with a GitHub access token and ThreadPoolExecutor for multithreading.
 
@@ -243,6 +250,7 @@ class GitHubRepositoryInfoExtractor:
         self.access_token = access_token
         self.github = Github(access_token)
         self.executor = ThreadPoolExecutor(max_workers=max_workers)
+        self.repository_details = {}
 
     def fetch_repositories(self, identifiers: List[str]) -> List[str]:
         """
@@ -260,7 +268,7 @@ class GitHubRepositoryInfoExtractor:
             all_repos.extend(f"{owner}/{repo.name}" for repo in user.get_repos())
         return all_repos
 
-    def _fetch_details(self, repo_full_name: str, details_spec: Dict[str, Any]) -> Dict[str, Any]:
+    def _fetch_details(self, repo_full_name: str, details_spec: Dict[str, Any]) -> Tuple[str, dict[Any, Any]]:
         """
         Fetches detailed information for a single repository based on the details specification.
 
@@ -281,6 +289,7 @@ class GitHubRepositoryInfoExtractor:
         for method, args in details_spec.get("methods", {}).items():
             if hasattr(repo, method) and callable(getattr(repo, method)):
                 repo_data[method] = getattr(repo, method)(**args) if args else getattr(repo, method)()
+
         return repo_full_name, repo_data
 
     def fetch_repository_details(self, repos: List[str], details_spec: Dict[str, Any] = None) -> Dict[
@@ -297,12 +306,19 @@ class GitHubRepositoryInfoExtractor:
         """
         if details_spec is None:
             details_spec = {"properties": [], "methods": {}}
+
         future_to_repo = {self.executor.submit(self._fetch_details, repo, details_spec): repo for repo in repos}
-        results = {}
-        for future in as_completed(future_to_repo):
+
+        # Initialize a tqdm progress bar
+        progress = tqdm(as_completed(future_to_repo), total=len(repos), desc="Fetching repository details")
+
+        for future in progress:
             repo, repo_data = future.result()
-            results[repo] = repo_data
-        return results
+            self.repository_details[repo] = repo_data  # Store each repo's data in the class attribute
+            # Optionally, you can update the progress description dynamically
+            # progress.set_description(f"Processed {repo}")
+
+        return self.repository_details
 
     def close(self) -> None:
         """
@@ -314,14 +330,30 @@ class GitHubRepositoryInfoExtractor:
         """
         Enables the class to be used as a context manager.
 
-        Returns
+        Returns:
+            GitHubRepositoryInfoExtractor: The instance of the class itself.
+        """
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """
+        Ensures that resources are cleaned up when exiting the context.
+
+        Args:
+            exc_type: Exception type, if any exception was raised within the context.
+            exc_val: Exception value, if any exception was raised within the context.
+            exc_tb: Traceback object, if any exception was raised within the context.
+        """
+        self.close()
 
     def output_results(self, results: Dict[str, Any], output_format: 'OutputFormat') -> None:
         """
-        Outputs the fetched repository attributes using the specified output format.
+        Outputs the fetched repository attributes using the specified output format. This is a placeholder method
+        meant to be implemented or extended based on specific output requirements (e.g., saving to a file,
+        printing to console, transforming into a different data structure).
 
         Args:
             results (Dict[str, Any]): The fetched repository data.
-            output_format (OutputFormat): The output format to transform and present the data.
+            output_format (OutputFormat): The output format instance used to transform and present the data.
         """
-        output_format.transform(results)
+        output_format.transform(self.repository_details)
