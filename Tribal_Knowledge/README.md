@@ -1,28 +1,55 @@
-# EA-Tribal-Knowledge-Analysis
+# Tribal Knowledge Project: A Hierarchical Bayesian Approach
 
 ## Overview
 
-This repository showcases a comprehensive approach to understanding and addressing tribal knowledge within an organization's coding practices. Leveraging advanced data generation and Bayesian hierarchical modelling, it simulates realistic scenarios of programming language distribution across various repositories and projects. The aim is to uncover patterns that may indicate knowledge silos or areas where expertise is too concentrated, posing risks to project continuity and team agility.
+The Tribal Knowledge Project introduces a data-driven, analytical approach to quantitatively assess and mitigate
+technological risks. Leveraging Hierarchical Bayesian Modeling (HBM), this project focuses on dissecting the layers of
+risk across repositories, providing insights into maintenance challenges, stability, and the impact of technological
+decisions on operational health for consistency and siloed knowledge.
 
-The data generation process, in particular, employs a nuanced model that accounts for real-world complexities such as language affinities and the skewed distribution of language usage within repositories. This methodological rigour ensures that the generated dummy data closely mirrors actual development environments, providing a solid foundation for subsequent analyses.
+## Key Metrics for Risk Assessment
 
-## Contents
+Our methodology centers around seven critical factors, each chosen for its significance in highlighting potential risks:
 
-- `generate_dummy_data.py`: A sophisticated script designed to create realistic dummy data, simulating GitHub's repository language statistics. It incorporates language prominence and affinities to reflect likely language co-occurrences and variations in repository sizes and compositions.
-- `tribal_knowledge_model.py`: This script employs Bayesian hierarchical modelling to interpret the generated data, aiming to identify and analyze patterns indicative of tribal knowledge within the codebase.
-- `data/`: A directory intended for storing the generated dummy data and any additional data files utilized by the analysis script.
+- **Time Since Last Commit**: Measures project activity and potential dormancy risks.
+- **Age of the Repo**: Reflects the repository's lifecycle stage, from active development to potential legacy status.
+- **Commit Frequency (CF)**: Indicates ongoing development efforts and maintenance.
+- **Open Issues Ratio (OIR)**: Reveals responsiveness and efficiency in addressing project concerns.
+- **Pull Request Resolution Time (PRRT)**: Highlights the development process's efficiency and potential bottlenecks.
+- **Total Number of Languages in the Repo**: Points to complexity and potential integration or maintenance challenges.
+- **Average Number of Commits per Month**: Offers insights into the development momentum and project vitality.
 
-## Getting Started
+### Composite Function and Problem-Solving Capability
 
-1. Ensure Python is installed on your system, along with essential libraries such as `pandas`, `numpy`, `pymc3`, and `matplotlib`.
-2. Execute `generate_dummy_data.py` to produce the dummy data, closely resembling real-world repository language distributions.
-3. Run `tribal_knowledge_model.py` to construct and visualize the Bayesian hierarchical model, leveraging the generated data to uncover insights into tribal knowledge patterns.
+By mathematically combining these metrics, we create a composite function that assesses risk across multiple dimensions,
+enabling prioritisation of mitigation efforts, an early warning system for potential risks, and informed strategic
+decision-making.
+
+## Project Structure
+
+- `data`: Contains scripts for data generation and output files for analysis.
+- `streamlit`: Hosts the Streamlit application for interactive data visualization.
+- `tribal_knowledge`: Core package with scripts for repository crawling and data analysis.
+
+### Key Components
+
+- `.env`: Stores API keys and sensitive configuration details i.e github tokens, azure pat, etc
+- `poetry.lock` & `pyproject.toml`: Manage project dependencies.
+- `tribal_knowledge.ipynb`: Main Jupyter notebook for project analysis.
+
+## Installation
+
+To set up the project environment:
+
+1. Install Poetry: `pip install poetry`
+2. Install dependencies: `poetry install`
 
 ## Usage
 
-### Generating Dummy Data
+- **Analysis**: Launch the Jupyter notebook (`tribal_knowledge.ipynb`) to conduct risk analysis.
+- **Interactive Visualization**: Run the Streamlit app (`streamlit/app.py`).
 
-To generate the dummy data, run the following command in your terminal:
+## Contributing
 
-```bash
-python generate_dummy_data.py
+We welcome contributions to enhance the project's methodology, data analysis, or visualizations.
+Please submit pull requests or report issues via GitHub.
