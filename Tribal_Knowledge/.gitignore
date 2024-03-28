@@ -2,3 +2,6 @@
 *
 # dont keep env related files
 .env
+
+# Ignore Jupyter checkpoints
+.ipynb_checkpoints

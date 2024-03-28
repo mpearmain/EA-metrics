@@ -176,6 +176,13 @@ class AzureDevOpsRepositoryInfoExtractor(RepositoryInfoExtractor):
         Returns:
             Dict[str, Any]: Detailed information for each project, with each key being a project name and its value
                             being a dictionary of the requested data as specified in `details_spec`.
+
+        WARNING: The structure below is aimed at POC to enable a test scenario to crawl for data
+        The nested for loop and requests.get is a long operation that can time out, exception etc...
+
+        For a more robust implementation using python multithreading inspiration can be taken from the
+        `GithubRepositoryInfoExtractor`
+
         """
         results = {}
         for project_name in projects:
