@@ -26,6 +26,14 @@ class JsonOutputFormat(OutputFormat):
 class PandasOutputFormat(OutputFormat):
     """Outputs data as a pandas DataFrame, dynamically handling attributes."""
 
+    def __init__(self, nested_row: bool = False):
+        """
+        Args:
+            nested_row (bool): If True, generate separate rows for nested dictionaries.
+                               If False, return a simpler DataFrame tht ignores nested row variables.
+        """
+        self.nested_row = nested_row
+
     def transform(self, results: Dict[str, Any]) -> pd.DataFrame:
         """Convert a dictionary with repository details into a pandas DataFrame dynamically.
 
@@ -44,30 +52,33 @@ class PandasOutputFormat(OutputFormat):
         data_rows = []
 
         for full_repo_name, repo_details in results.items():
-            owner, repo_name = full_repo_name.split('/')
-            if repo_name == '.github':  # Skip .github repositories
+            owner, repo_name = full_repo_name.split("/")
+            if repo_name == ".github":  # Skip .github repositories
                 continue
 
-            # Direct attributes that are not dictionaries (will be shared across rows for the same repo)
-            shared_attributes = {k: v for k, v in repo_details.items() if not isinstance(v, dict)}
-            shared_attributes.update({'Owner': owner, 'Repository': repo_name})
+            shared_attributes = {
+                k: v for k, v in repo_details.items() if not isinstance(v, dict)
+            }
+            shared_attributes.update({"Owner": owner, "Repository": repo_name})
 
-            # Process nested dictionaries
-            nested_attributes_exist = any(isinstance(v, dict) for v in repo_details.values())
-            if nested_attributes_exist:
-                for attribute, nested_values in repo_details.items():
-                    if isinstance(nested_values, dict):
-                        for nested_key, nested_value in nested_values.items():
-                            row = shared_attributes.copy()
-                            row.update({attribute: nested_key, 'Value': nested_value})
-                            data_rows.append(row)
+            if self.nested_row:
+                # Generate separate rows for nested dictionaries
+                nested_attributes_exist = any(isinstance(v, dict) for v in repo_details.values())
+                if nested_attributes_exist:
+                    for attribute, nested_values in repo_details.items():
+                        if isinstance(nested_values, dict):
+                            for nested_key, nested_value in nested_values.items():
+                                row = shared_attributes.copy()
+                                row.update({attribute: nested_key, "Value": nested_value})
+                                data_rows.append(row)
+                else:
+                    data_rows.append(shared_attributes)
             else:
-                # If there are no nested dictionaries, add the shared attributes directly
+                # Add non-nested attributes directly, skipping the nested rows
                 data_rows.append(shared_attributes)
 
         df = pd.DataFrame(data_rows)
-        # Reordering columns to ensure Owner and Repository are first
-        cols = ['Owner', 'Repository'] + [col for col in df.columns if col not in ['Owner', 'Repository']]
+        cols = ["Owner", "Repository"] + [col for col in df.columns if col not in ["Owner", "Repository"]]
         df = df[cols]
         return df
 
@@ -87,14 +98,18 @@ class RepositoryInfoExtractor(ABC):
         pass
 
     @abstractmethod
-    def fetch_repository_details(self, repos: List[str], details_spec: Dict[str, Any]) -> Dict[str, Any]:
+    def fetch_repository_details(
+            self, repos: List[str], details_spec: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
         Fetches detailed information for a list of repositories based on specified criteria.
         """
         pass
 
     @abstractmethod
-    def output_results(self, results: Dict[str, Any], output_format: 'OutputFormat') -> None:
+    def output_results(
+            self, results: Dict[str, Any], output_format: "OutputFormat"
+    ) -> None:
         """
         Outputs the fetched repository attributes to a specified path in the given format.
         """
@@ -159,7 +174,9 @@ class AzureDevOpsRepositoryInfoExtractor(RepositoryInfoExtractor):
         else:
             return []
 
-    def fetch_repository_details(self, projects: List[str], details_spec: Dict[str, str]) -> Dict[str, Any]:
+    def fetch_repository_details(
+            self, projects: List[str], details_spec: Dict[str, str]
+    ) -> Dict[str, Any]:
         """
         Fetches detailed information for a list of Azure DevOps projects based on a details specification.
 
@@ -193,13 +210,17 @@ class AzureDevOpsRepositoryInfoExtractor(RepositoryInfoExtractor):
                 if response.status_code == 200:
                     project_details[result_key] = response.json()["value"]
                 else:
-                    print(f"Failed to fetch {result_key} for project {project_name}: {response.status_code}")
+                    print(
+                        f"Failed to fetch {result_key} for project {project_name}: {response.status_code}"
+                    )
 
             results[project_name] = project_details
 
         return results
 
-    def output_results(self, results: Dict[str, Any], output_format: 'OutputFormat') -> None:
+    def output_results(
+            self, results: Dict[str, Any], output_format: "OutputFormat"
+    ) -> None:
         """
         Outputs the fetched repository attributes using the specified output format.
 
@@ -275,7 +296,9 @@ class GitHubRepositoryInfoExtractor:
             all_repos.extend(f"{owner}/{repo.name}" for repo in user.get_repos())
         return all_repos
 
-    def _fetch_details(self, repo_full_name: str, details_spec: Dict[str, Any]) -> Tuple[str, dict[Any, Any]]:
+    def _fetch_details(
+            self, repo_full_name: str, details_spec: Dict[str, Any]
+    ) -> Tuple[str, dict[Any, Any]]:
         """
         Fetches detailed information for a single repository based on the details specification.
 
@@ -295,12 +318,15 @@ class GitHubRepositoryInfoExtractor:
         # Handle methods
         for method, args in details_spec.get("methods", {}).items():
             if hasattr(repo, method) and callable(getattr(repo, method)):
-                repo_data[method] = getattr(repo, method)(**args) if args else getattr(repo, method)()
+                repo_data[method] = (
+                    getattr(repo, method)(**args) if args else getattr(repo, method)()
+                )
 
         return repo_full_name, repo_data
 
-    def fetch_repository_details(self, repos: List[str], details_spec: Dict[str, Any] = None) -> Dict[
-        str, Dict[str, Any]]:
+    def fetch_repository_details(
+            self, repos: List[str], details_spec: Dict[str, Any] = None
+    ) -> Dict[str, Dict[str, Any]]:
         """
         Fetches detailed information for a list of repositories in parallel using multithreading.
 
@@ -314,14 +340,23 @@ class GitHubRepositoryInfoExtractor:
         if details_spec is None:
             details_spec = {"properties": [], "methods": {}}
 
-        future_to_repo = {self.executor.submit(self._fetch_details, repo, details_spec): repo for repo in repos}
+        future_to_repo = {
+            self.executor.submit(self._fetch_details, repo, details_spec): repo
+            for repo in repos
+        }
 
         # Initialize a tqdm progress bar
-        progress = tqdm(as_completed(future_to_repo), total=len(repos), desc="Fetching repository details")
+        progress = tqdm(
+            as_completed(future_to_repo),
+            total=len(repos),
+            desc="Fetching repository details",
+        )
 
         for future in progress:
             repo, repo_data = future.result()
-            self.repository_details[repo] = repo_data  # Store each repo's data in the class attribute
+            self.repository_details[repo] = (
+                repo_data  # Store each repo's data in the class attribute
+            )
             # Optionally, you can update the progress description dynamically
             # progress.set_description(f"Processed {repo}")
 
@@ -353,7 +388,9 @@ class GitHubRepositoryInfoExtractor:
         """
         self.close()
 
-    def output_results(self, results: Dict[str, Any], output_format: 'OutputFormat') -> None:
+    def output_results(
+            self, results: Dict[str, Any], output_format: "OutputFormat"
+    ) -> None:
         """
         Outputs the fetched repository attributes using the specified output format. This is a placeholder method
         meant to be implemented or extended based on specific output requirements (e.g., saving to a file,

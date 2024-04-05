@@ -37,17 +37,23 @@ class LanguagePosteriorAnalysis:
         self.ppc = ppc
         self.repo = repo
         self.unique_repo = f"{repo['Owner']}_{repo['Repository']}"
-        self.posterior_samples = ppc.posterior_predictive['language_count_obs'].values
+        self.posterior_samples = ppc.posterior_predictive["language_count_obs"].values
 
     def get_language_info(self, language):
-        query_indexes = self.df[(self.df['Language'] == language) & (self.df['Unique_Repo'] == self.unique_repo)][
-            'Repo_Lang_Key_codes']
+        query_indexes = self.df[
+            (self.df["Language"] == language)
+            & (self.df["Unique_Repo"] == self.unique_repo)
+            ]["Repo_Lang_Key_codes"]
         if query_indexes.empty:
             return None, None
         query_index = query_indexes.iloc[0]
 
-        language_samples_agg = np.mean(self.posterior_samples[:, :, query_index], axis=0)
-        language_observed_byte_count = self.df.loc[self.df['Repo_Lang_Key_codes'] == query_index, 'ByteCount'].iloc[0]
+        language_samples_agg = np.mean(
+            self.posterior_samples[:, :, query_index], axis=0
+        )
+        language_observed_byte_count = self.df.loc[
+            self.df["Repo_Lang_Key_codes"] == query_index, "ByteCount"
+        ].iloc[0]
 
         ci_lower = np.quantile(language_samples_agg, 0.025)
         ci_upper = np.quantile(language_samples_agg, 0.975)
@@ -55,7 +61,9 @@ class LanguagePosteriorAnalysis:
         return language_samples_agg, language_observed_byte_count, ci_lower, ci_upper
 
     def plot_all_languages_posterior(self):
-        languages_in_repo = self.df[self.df['Unique_Repo'] == self.unique_repo]['Language'].unique()
+        languages_in_repo = self.df[self.df["Unique_Repo"] == self.unique_repo][
+            "Language"
+        ].unique()
         n_languages = len(languages_in_repo)
 
         ncols = 2 if n_languages > 1 else 1
@@ -73,25 +81,43 @@ class LanguagePosteriorAnalysis:
 
         # Hide unused subplots
         for j in range(i + 1, len(axes)):
-            axes[j].axis('off')
+            axes[j].axis("off")
 
         plt.tight_layout()
         plt.show()
 
-    def plot_language(self, ax, language_samples_agg, language_observed_byte_count, ci_lower, ci_upper, language):
+    def plot_language(
+            self,
+            ax,
+            language_samples_agg,
+            language_observed_byte_count,
+            ci_lower,
+            ci_upper,
+            language,
+    ):
         observed_log_byte_count = np.log(language_observed_byte_count)
-        ax.hist(np.log(language_samples_agg + 1), bins=30, alpha=0.7, color='skyblue')
-        ax.axvline(x=observed_log_byte_count, color='red', linestyle='--',
-                   label=f'Observed {observed_log_byte_count:.2f}')
-        ax.axvline(x=np.log(ci_lower + 1), color='green', linestyle='--', label='95% CI Lower')
-        ax.axvline(x=np.log(ci_upper + 1), color='green', linestyle='--', label='95% CI Upper')
-        ax.set_title(f'{language}')
-        ax.set_xlabel('Log Byte Count')
-        ax.set_ylabel('Frequency')
+        ax.hist(np.log(language_samples_agg + 1), bins=30, alpha=0.7, color="skyblue")
+        ax.axvline(
+            x=observed_log_byte_count,
+            color="red",
+            linestyle="--",
+            label=f"Observed {observed_log_byte_count:.2f}",
+        )
+        ax.axvline(
+            x=np.log(ci_lower + 1), color="green", linestyle="--", label="95% CI Lower"
+        )
+        ax.axvline(
+            x=np.log(ci_upper + 1), color="green", linestyle="--", label="95% CI Upper"
+        )
+        ax.set_title(f"{language}")
+        ax.set_xlabel("Log Byte Count")
+        ax.set_ylabel("Frequency")
         ax.legend()
 
     def calculate_outliers(self):
-        languages_in_repo = self.df[self.df['Unique_Repo'] == self.unique_repo]['Language'].unique()
+        languages_in_repo = self.df[self.df["Unique_Repo"] == self.unique_repo][
+            "Language"
+        ].unique()
         outlier_info = []
 
         for language in languages_in_repo:
@@ -99,15 +125,18 @@ class LanguagePosteriorAnalysis:
             if language_info[0] is not None:
                 _, language_observed_byte_count, ci_lower, ci_upper = language_info
                 observed_log_byte_count = np.log(language_observed_byte_count + 1)
-                is_outlier = observed_log_byte_count < np.log(ci_lower + 1) or observed_log_byte_count > np.log(
-                    ci_upper + 1)
+                is_outlier = observed_log_byte_count < np.log(
+                    ci_lower + 1
+                ) or observed_log_byte_count > np.log(ci_upper + 1)
 
-                outlier_info.append({
-                    'language': language,
-                    'Observed log byte count': observed_log_byte_count,
-                    'Lower CI': np.log(ci_lower + 1),
-                    'Upper CI': np.log(ci_upper + 1),
-                    'Outlier': is_outlier
-                })
+                outlier_info.append(
+                    {
+                        "language": language,
+                        "Observed log byte count": observed_log_byte_count,
+                        "Lower CI": np.log(ci_lower + 1),
+                        "Upper CI": np.log(ci_upper + 1),
+                        "Outlier": is_outlier,
+                    }
+                )
 
         return pd.DataFrame(outlier_info)
